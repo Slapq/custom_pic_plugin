@@ -270,13 +270,14 @@ class Custom_Pic_Action(BaseAction):
         self, prompt: str, model: str, size: str, seed: int | None, guidance_scale: float, watermark: bool
     ) -> Tuple[bool, str]:
         """发送HTTP请求生成图片"""
-        base_url = self.get_config("api.base_url")
-        generate_api_key = self.get_config("api.api_key")
+        base_url = self.get_config("api.base_url","")
+        generate_api_key = self.get_config("api.api_key","")
 
-        endpoint = f"{base_url('/')}/images/generations"
+        endpoint = f"{base_url.rstrip('/')}/images/generations"
 
         #指定图片大小参数
-        enable_default_size = self.get_config("generation.fixed_size_enabled","true")#获取是否启用自定义图片大小，如果启用，将图片大小指定为固定值
+        default_size = size #初始化
+        enable_default_size = self.get_config("generation.fixed_size_enabled","false")#获取是否启用自定义图片大小，如果启用，将图片大小指定为固定值
         if enable_default_size:
             default_size = self.get_config("generation.default_size","")
 
