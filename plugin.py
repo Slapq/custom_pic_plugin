@@ -273,15 +273,15 @@ class Custom_Pic_Action(BaseAction):
         base_url = self.get_config("api.base_url")
         generate_api_key = self.get_config("api.api_key")
 
-        endpoint = f"{base_url.rstrip('/')}/images/generations"
+        endpoint = f"{base_url('/')}/images/generations"
 
         #指定图片大小参数
-        enable_default_size = self.get_config("generation.fixed_size_enabled")#获取是否启用自定义图片大小，如果启用，将图片大小指定为固定值
+        enable_default_size = self.get_config("generation.fixed_size_enabled","true")#获取是否启用自定义图片大小，如果启用，将图片大小指定为固定值
         if enable_default_size:
-            default_size = self.get_config("generation.default_size")
+            default_size = self.get_config("generation.default_size","")
 
         # 获取配置参数 - 使用字符串键名
-        custom_prompt_add = self.get_config("generation.custom_prompt_add", "")#附加正面提示词参数
+        custom_prompt_add = self.get_config("generation.custom_prompt_add","")#附加正面提示词参数
         negative_prompt_add = self.get_config("generation.negative_prompt_add", "")#附加负面提示词参数
 
         prompt_add= prompt + custom_prompt_add#不手动添加逗号，需要在配置文件中注意
@@ -380,7 +380,7 @@ class CustomPicPlugin(BasePlugin):
     """根据描述使用不同的 绘图 API生成图片的动作处理类"""
     # 插件基本信息
     plugin_name = "custom_pic_plugin"# 内部标识符
-    plugin_version = "1.2.0"
+    plugin_version = "1.2.1"
     plugin_author = "Ptrel"
     enable_plugin = True
     config_file_name = "config.toml"
@@ -400,7 +400,7 @@ class CustomPicPlugin(BasePlugin):
     config_schema = {
         "plugin": {
             "name": ConfigField(type=str, default="custom_pic_plugin", description="自定义提示词绘图", required=True),
-            "config_version": ConfigField(type=str, default="1.2.0", description="插件版本号"),
+            "config_version": ConfigField(type=str, default="1.2.1", description="插件版本号"),
             "enabled": ConfigField(type=bool, default=False, description="是否启用插件")
         },
         "api": {
