@@ -76,7 +76,7 @@ class Custom_Pic_Action(BaseAction):
     # 动作参数定义
     action_parameters = {
         "description": "图片描述，输入你想要生成并发送的图片的描述，将描述翻译为英文单词组合，并用‘,‘分隔，描述中不要出现中文，必填",
-        "size": "图片尺寸，例如 '512x512' (可选, 默认从配置或 '1024x1024')",
+        "size": "图片尺寸 512x512(默认从配置中获取，如果配置中含有多个大小，则可以从中选取一个)",
     }
 
     # 动作使用场景
@@ -84,7 +84,7 @@ class Custom_Pic_Action(BaseAction):
         #"当有人让你画东西时使用，你可以立刻画好，不用等待",
         "当有人要求你生成并发送一张图片时使用，不要频率太高",
         #"当有人让你画一张图时使用",
-        "当你想要通过自画像表情包来表达自己情感时使用，不要频率太高",
+        #"当你想要通过自画像表情包来表达自己情感时使用，不要频率太高",
         "重点：不要连续发，如果你在前10句内已经发送过[图片]或者[表情包]或记录出现过类似描述的[图片]，就不要不选择此动作",
     ]
     associated_types = ["text", "image"]
@@ -275,20 +275,24 @@ class Custom_Pic_Action(BaseAction):
 
         endpoint = f"{base_url.rstrip('/')}/images/generations"
 
+        #指定图片大小参数
+        enable_default_size = self.get_config("generation.fixed_size_enabled")#获取是否启用自定义图片大小，如果启用，将图片大小指定为固定值
+        if enable_default_size:
+            default_size = self.get_config("generation.default_size")
+
         # 获取配置参数 - 使用字符串键名
         custom_prompt_add = self.get_config("generation.custom_prompt_add", "")#附加正面提示词参数
         negative_prompt_add = self.get_config("generation.negative_prompt_add", "")#附加负面提示词参数
 
-        prompt_add= prompt + ", " + custom_prompt_add
-        negative_prompt = negative_prompt_add
-
+        prompt_add= prompt + custom_prompt_add#不手动添加逗号，需要在配置文件中注意
+        negative_prompt = negative_prompt_add#暂时没有自动生成的负面参数
 
         payload_dict = {
             "model": model,
             "prompt": prompt_add,  # 使用附加的正面提示词
             "negative_prompt":negative_prompt,
             #"response_format": "b64_json",# gpt-image-1 无法使用 url 返回为 “b64_json"，豆包默认返回为 "url"
-            "size": size,
+            "size": default_size,#固定size
             "guidance_scale": guidance_scale,
             "watermark": watermark,
             "seed": seed,  # seed is now always an int from process()
@@ -376,7 +380,7 @@ class CustomPicPlugin(BasePlugin):
     """根据描述使用不同的 绘图 API生成图片的动作处理类"""
     # 插件基本信息
     plugin_name = "custom_pic_plugin"# 内部标识符
-    plugin_version = "1.1.2"
+    plugin_version = "1.2.0"
     plugin_author = "Ptrel"
     enable_plugin = True
     config_file_name = "config.toml"
@@ -396,7 +400,7 @@ class CustomPicPlugin(BasePlugin):
     config_schema = {
         "plugin": {
             "name": ConfigField(type=str, default="custom_pic_plugin", description="自定义提示词绘图", required=True),
-            "config_version": ConfigField(type=str, default="1.1.2", description="插件版本号"),
+            "config_version": ConfigField(type=str, default="1.2.0", description="插件版本号"),
             "enabled": ConfigField(type=bool, default=False, description="是否启用插件")
         },
         "api": {
@@ -427,12 +431,16 @@ class CustomPicPlugin(BasePlugin):
                     "\n#gpt-image-1\"#GPT 生图，约 1.3￥ 一张图（chatany）"
                     ]
             ),
+            "fixed_size_enabled": ConfigField(
+                type=bool,
+                default=True,
+                description="是否启用固定图片大小，启用后只会发配置文件中定义的大小，否则会由麦麦自己选择。（chatany 的 gpt-image-1 生图模型不支持 512 大小图片，需要固定 1024x1024）"),
             "default_size": ConfigField(
                 type=str,
                 default="1024x1024",
-                description="默认图片尺寸",
+                description="要生成的图片尺寸",
                 example="1024x1024",
-                choices=["1024x1024", "1024x1280", "1280x1024", "1024x1536", "1536x1024"],
+                choices=["512x512","1024x1024", "1024x1280", "1280x1024", "1024x1536", "1536x1024"],
             ),
             "default_watermark": ConfigField(
                 type=bool, 
@@ -449,13 +457,13 @@ class CustomPicPlugin(BasePlugin):
                 description="随机种子，用于复现图片"),
             "custom_prompt_add": ConfigField(
                 type=str,
-                default="Nordic picture book art style, minimalist flat design, soft rounded lines, high saturation color blocks collision, dominant forest green and warm orange palette, low contrast lighting, hand-drawn pencil texture, healing fairy-tale atmosphere, geometric natural forms, ample white space composition, warm and clean aesthetic,liaocao\"#北欧绘本艺术风格，简约扁平设计，柔和圆润线条，高饱和度色块碰撞，森林绿与暖橙主色调，低对比度光影，手绘铅笔质感，治愈系童话氛围，几何化自然形态，留白构图，温暖干净画面",
-                description="正面附加提示词（尽量使用英文，且用词语和逗号的形式，豆包可以使用中文句子提示词）"
+                default=",Nordic picture book art style, minimalist flat design, soft rounded lines, high saturation color blocks collision, dominant forest green and warm orange palette, low contrast lighting, hand-drawn pencil texture, healing fairy-tale atmosphere, geometric natural forms, ample white space composition, warm and clean aesthetic,liaocao\"#北欧绘本艺术风格，简约扁平设计，柔和圆润线条，高饱和度色块碰撞，森林绿与暖橙主色调，低对比度光影，手绘铅笔质感，治愈系童话氛围，几何化自然形态，留白构图，温暖干净画面",
+                description="正面附加提示词（因为为附加，开头需要添加一个英文逗号‘,’，该参数不参与 LLM 模型转换，属于直接发送的参数，使用英文，使用词语和逗号的形式，不使用描述的原因为：为了确保提示词能够精准生效，防止 lora 关键词被替换。豆包可以直接使用中文句子作为提示词）。"
             ),
             "negative_prompt_add": ConfigField(
                 type=str,
                 default="Pornography,nudity,lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry\"#色情，裸体，低分辨率，糟糕的解剖结构，糟糕的手，文字，错误，缺失的手指，多余的数字，更少的数字，裁剪，最差的质量，低质量，正常质量，jpeg文物，签名，水印，用户名，模糊色情，裸体，低分辨率，糟糕的解剖结构，糟糕的手，文字，错误，缺失的手指，多余的数字，更少的数字，裁剪，最差的质量，低质量，正常质量，jpeg文物，签名，水印，用户名，模糊",
-                description="负面附加提示词，保持默认或使用豆包时可留空"
+                description="负面附加提示词，保持默认或使用豆包时可留空，留空时保持两个英文双引号，否则会报错。"
             ),
         },
         "cache": {
