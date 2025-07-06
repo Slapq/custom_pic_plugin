@@ -71,7 +71,6 @@
 ## 代码结构
 
 - `plugin.py` 插件主逻辑
-- `doubao_pic_tools.py` 工具函数（可被其他插件 import 调用）
 - `config.toml` 插件配置文件
 - `_manifest.json` 插件元数据
 
