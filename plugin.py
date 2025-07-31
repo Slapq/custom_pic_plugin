@@ -1,15 +1,11 @@
 import asyncio
 import json
 import urllib.request
-import urllib.error
 import base64
 import traceback
 from typing import List, Tuple, Type, Optional
 
 # 导入新插件系统
-from src.plugin_system.apis import chat_api
-from src.plugin_system.apis import send_api
-from src.plugin_system.apis import config_api
 from src.plugin_system.base.base_plugin import BasePlugin
 from src.plugin_system.base.base_action import BaseAction
 from src.plugin_system.base.component_types import ComponentInfo, ActionActivationType, ChatMode
@@ -18,19 +14,12 @@ from src.plugin_system.base.config_types import ConfigField
 # 导入新插件系统
 from src.plugin_system import BasePlugin, register_plugin, ComponentInfo, ActionActivationType
 from src.plugin_system.base.config_types import ConfigField
-from src.config.config import global_config
 
 # 导入依赖的系统组件
 from src.common.logger import get_logger
 
 # 导入API模块 - 标准Python包方式
-from src.plugins.built_in.core_actions.no_reply import NoReplyAction
-from src.plugins.built_in.core_actions.emoji import EmojiAction
-from src.plugin_system.apis import generator_api, message_api
-from src.plugins.built_in.core_actions.no_reply import NoReplyAction
-from src.person_info.person_info import get_person_info_manager
-from src.mais4u.mai_think import mai_thinking_manager
-from src.mais4u.constant_s4u import ENABLE_S4U
+
 
 
 logger = get_logger("pic_action")
