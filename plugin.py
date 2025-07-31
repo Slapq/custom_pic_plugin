@@ -26,7 +26,6 @@ from src.common.logger import get_logger
 # 导入API模块 - 标准Python包方式
 from src.plugins.built_in.core_actions.no_reply import NoReplyAction
 from src.plugins.built_in.core_actions.emoji import EmojiAction
-from src.plugins.built_in.core_actions.reply import ReplyAction
 from src.plugin_system.apis import generator_api, message_api
 from src.plugins.built_in.core_actions.no_reply import NoReplyAction
 from src.person_info.person_info import get_person_info_manager
