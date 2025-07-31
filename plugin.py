@@ -11,11 +11,27 @@ from src.plugin_system.apis import chat_api
 from src.plugin_system.apis import send_api
 from src.plugin_system.apis import config_api
 from src.plugin_system.base.base_plugin import BasePlugin
-from src.plugin_system.base.base_plugin import register_plugin
 from src.plugin_system.base.base_action import BaseAction
 from src.plugin_system.base.component_types import ComponentInfo, ActionActivationType, ChatMode
 from src.plugin_system.base.config_types import ConfigField
+
+# 导入新插件系统
+from src.plugin_system import BasePlugin, register_plugin, ComponentInfo, ActionActivationType
+from src.plugin_system.base.config_types import ConfigField
+from src.config.config import global_config
+
+# 导入依赖的系统组件
 from src.common.logger import get_logger
+
+# 导入API模块 - 标准Python包方式
+from src.plugins.built_in.core_actions.no_reply import NoReplyAction
+from src.plugins.built_in.core_actions.emoji import EmojiAction
+from src.plugins.built_in.core_actions.reply import ReplyAction
+from src.plugin_system.apis import generator_api, message_api
+from src.plugins.built_in.core_actions.no_reply import NoReplyAction
+from src.person_info.person_info import get_person_info_manager
+from src.mais4u.mai_think import mai_thinking_manager
+from src.mais4u.constant_s4u import ENABLE_S4U
 
 
 logger = get_logger("pic_action")
@@ -381,9 +397,11 @@ class CustomPicPlugin(BasePlugin):
     """根据描述使用不同的 绘图 API生成图片的动作处理类"""
     # 插件基本信息
     plugin_name = "custom_pic_plugin"# 内部标识符
-    plugin_version = "1.2.1"
+    plugin_version = "2.0.1"
     plugin_author = "Ptrel"
     enable_plugin = True
+    dependencies: List[str] = []  # 插件依赖列表
+    python_dependencies: List[str] = []  # Python包依赖列表
     config_file_name = "config.toml"
 
 
