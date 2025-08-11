@@ -407,7 +407,7 @@ class CustomPicPlugin(BasePlugin):
     config_schema = {
         "plugin": {
             "name": ConfigField(type=str, default="custom_pic_plugin", description="自定义提示词绘图", required=True),
-            "config_version": ConfigField(type=str, default="1.2.1", description="插件版本号"),
+            "config_version": ConfigField(type=str, default="1.2.2", description="插件版本号"),
             "enabled": ConfigField(type=bool, default=False, description="是否启用插件")
         },
         "api": {
@@ -419,12 +419,14 @@ class CustomPicPlugin(BasePlugin):
                 choices=[
                     "https://api-inference.modelscope.cn/v1\"#魔搭可自选 lora，对应模型网址：https://modelscope.cn/models?page=1&tabKey=task&tasks=hotTask:text-to-image-synthesis&type=tasks", 
                     "\n#https://ark.cn-beijing.volces.com/api/v3\"#豆包火山方舟 API,对应网址：https://console.volcengine.com/auth/login?redirectURI=%2Fmessage%2Finnermsg",
-                    "\n#https://api.chatanywhere.tech/v1\"#chatany API，对应文档网址：https://chatanywhere.apifox.cn/",]
+                    "\n#https://api.chatanywhere.tech/v1\"#chatany API，第三方API，对应文档网址：https://chatanywhere.apifox.cn/",
+                    "\n#hhttps://apihk.unifyllm.top/v1\"#apihk API,更便宜的第三方，对应文档网址：https://apihk.unifyllm.top/",
+                    ]
             ),
             "api_key": ConfigField(
                 type=str,                 
                 default="Bearer xxxxxxxxxxxxxxxxxxxxxx",
-                description="API 的 api 密钥，需要添加‘Bearer ’前缀，chatany 不需要前缀，根据不同 api 文档进行选择,如 chatanywhere 的 key 不需要 Berarer，即直接输入密钥‘xxxxxxxxxxxxxxxxxxxxxxxx’", 
+                description="API 的 api 密钥，需要添加‘Bearer ’前缀，chatany 不需要前缀，根据不同 api 文档进行选择（也有加或不加均支持的）,如 chatanywhere 的 key 不需要 Berarer，即直接输入密钥‘xxxxxxxxxxxxxxxxxxxxxxxx’", 
                 required=True
             ),
         },
@@ -435,7 +437,7 @@ class CustomPicPlugin(BasePlugin):
                 description="模型选择，可自定义，以下为示例",
                 choices=[
                     "MusePublic/14_ckpt_SD_XL\"#万象熔炉 | Anything XL，社区模型(魔搭)","\n#cancel13/liaocao\"#潦草 lora 图片生成模型，社区模型（魔搭）","\n#doubao-seedream-3-0-t2i-250415\"#豆包图片生成模型约 0.3￥ 一张图（火山）",
-                    "\n#gpt-image-1\"#GPT 生图，约 1.3￥ 一张图（chatany）"
+                    "\n#gpt-image-1\"#GPT 生图，约 1.3￥ 一张图（chatany），约 0.2￥ 一张图（apihk）"
                     ]
             ),
             "fixed_size_enabled": ConfigField(
