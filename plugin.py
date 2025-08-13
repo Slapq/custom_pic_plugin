@@ -18,20 +18,7 @@ from src.plugin_system.base.config_types import ConfigField
 # 导入依赖的系统组件
 from src.common.logger import get_logger
 
-# 导入API模块 - 标准Python包方式
-
-
-
 logger = get_logger("pic_action")
-
-# 当此模块被加载时，尝试生成配置文件（如果它不存在）
-# 注意：在某些插件加载机制下，这可能会在每次机器人启动或插件重载时执行
-# 考虑是否需要更复杂的逻辑来决定何时运行 (例如，仅在首次安装时)
-
-
-
-
-
 
 # ===== Action组件 =====
 
@@ -53,7 +40,7 @@ class Custom_Pic_Action(BaseAction):
     # 关键词设置（用于Normal模式）
     activation_keywords = ["画", "绘制", "生成图片", "画图", "draw", "paint", "图片生成"]
 
-        # LLM判定提示词（用于Focus模式）
+    # LLM判定提示词（用于Focus模式）
     llm_judge_prompt = """
 判定是否需要使用图片生成动作的条件：
 1. 用户明确要求画图、生成图片或创作图像
@@ -79,16 +66,13 @@ class Custom_Pic_Action(BaseAction):
 
     # 动作参数定义
     action_parameters = {
-        "description": "图片描述，输入你想要生成并发送的图片的描述，将描述翻译为英文单词组合，并用‘,‘分隔，描述中不要出现中文，必填",
+        "description": "图片描述，输入你想要生成并发送的图片的描述，将描述翻译为英文单词组合，并用','分隔，描述中不要出现中文，必填",
         "size": "图片尺寸 512x512(默认从配置中获取，如果配置中含有多个大小，则可以从中选取一个)",
     }
 
     # 动作使用场景
     action_require = [
-        #"当有人让你画东西时使用，你可以立刻画好，不用等待",
         "当有人要求你生成并发送一张图片时使用，不要频率太高",
-        #"当有人让你画一张图时使用",
-        #"当你想要通过自画像表情包来表达自己情感时使用，不要频率太高",
         "重点：不要连续发，如果你在前10句内已经发送过[图片]或者[表情包]或记录出现过类似描述的[图片]，就不要不选择此动作",
     ]
     associated_types = ["text", "image"]
@@ -111,7 +95,7 @@ class Custom_Pic_Action(BaseAction):
             return False, "HTTP配置不完整"
 
         # API密钥验证
-        if http_api_key == "YOUR_DOUBAO_API_KEY_HERE":
+        if http_api_key == "YOUR_API_KEY_HERE":
             error_msg = "图片生成功能尚未配置，请设置正确的API密钥。"
             await self.send_text(error_msg)
             logger.error(f"{self.log_prefix} API密钥未配置")
@@ -131,7 +115,7 @@ class Custom_Pic_Action(BaseAction):
             logger.info(f"{self.log_prefix} 图片描述过长，已截断")
 
         # 获取配置
-        default_model = self.get_config("generation.default_model", "doubao-seedream-3-0-t2i-250415")
+        default_model = self.get_config("generation.default_model", "black-forest-labs/flux-schnell")
         image_size = self.action_data.get("size", self.get_config("generation.default_size", "1024x1024"))
 
         # 验证图片尺寸格式
@@ -156,10 +140,9 @@ class Custom_Pic_Action(BaseAction):
                 del self._request_cache[cache_key]
 
         # 获取其他配置参数
-        seed_val = self.get_config("generation.default_seed",42)#种子
-        guidance_scale_val=self.get_config("default_guidance_scale",2.5)#强度
-        watermark_val = self.get_config("generation.default_watermark", True)#水印
-
+        seed_val = self.get_config("generation.default_seed", -1)  # -1表示随机
+        guidance_scale_val = self.get_config("generation.default_guidance_scale", 7.5)
+        num_inference_steps = self.get_config("generation.num_inference_steps", 30)
 
         await self.send_text(
             f"收到！正在为您生成关于 '{description}' 的图片，请稍候...（模型: {default_model}, 尺寸: {image_size}）"
@@ -173,7 +156,7 @@ class Custom_Pic_Action(BaseAction):
                 size=image_size,
                 seed=seed_val,
                 guidance_scale=guidance_scale_val,
-                watermark=watermark_val,
+                num_inference_steps=num_inference_steps,
             )
         except Exception as e:
             logger.error(f"{self.log_prefix} (HTTP) 异步请求执行失败: {e!r}", exc_info=True)
@@ -184,19 +167,18 @@ class Custom_Pic_Action(BaseAction):
         if success:
             # 如果返回的是Base64数据（以"iVBORw"等开头），直接使用
             if result.startswith(("iVBORw", "/9j/", "UklGR", "R0lGOD")):  # 常见图片格式的Base64前缀
-                #logger.info(f"{self.log_prefix} 获取到Base64图片数据，直接发送")
-                #logger.info(f"{self.log_prefix} (HTTP) 获取到Base64图片数据，长度: {len(self.log_prefix)}")
                 send_success = await self.send_image(result)
                 if send_success:
-                    await self.send_text("图片表情已发送！")
-                    return True, "图片表情已发送(Base64)"
+                    # 缓存成功的结果
+                    self._request_cache[cache_key] = result
+                    self._cleanup_cache()
+                    await self.send_text("图片已发送！")
+                    return True, "图片已发送(Base64)"
                 else:
-                    await self.send_text("图片已处理为Base64，但作为表情发送失败了")#("图片已处理为Base64，但作为表情发送失败了。")
+                    await self.send_text("图片已处理为Base64，但作为表情发送失败了")
                     return False, "图片表情发送失败 (Base64)"
             else:  # 否则认为是URL
                 image_url = result
-            # print(f"image_url: {image_url}")
-            # print(f"result: {result}")
                 logger.info(f"{self.log_prefix} 图片URL获取成功: {image_url[:70]}... 下载并编码.")
 
                 try:
@@ -218,7 +200,6 @@ class Custom_Pic_Action(BaseAction):
                         await self.send_text("图片已发送！")
                         return True, "图片已成功生成并发送"
                     else:
-                        print(f"send_success: {send_success}")
                         await self.send_text("图片已处理为Base64，但发送失败了。")
                         return False, "图片发送失败 (Base64)"
                 else:
@@ -265,66 +246,68 @@ class Custom_Pic_Action(BaseAction):
         """验证图片尺寸格式"""
         try:
             width, height = map(int, image_size.split("x"))
-            return 100 <= width <= 10000 and 100 <= height <= 10000
+            return 100 <= width <= 2048 and 100 <= height <= 2048
         except (ValueError, TypeError):
             return False
 
+    def _parse_size(self, size: str) -> Tuple[int, int]:
+        """解析尺寸字符串为宽度和高度"""
+        try:
+            width, height = map(int, size.split("x"))
+            return width, height
+        except (ValueError, TypeError):
+            return 1024, 1024  # 默认尺寸
 
     def _make_http_image_request(
-        self, prompt: str, model: str, size: str, seed: int | None, guidance_scale: float, watermark: bool
+        self, prompt: str, model: str, size: str, seed: int, guidance_scale: float, num_inference_steps: int
     ) -> Tuple[bool, str]:
         """发送HTTP请求生成图片"""
-        base_url = self.get_config("api.base_url","")
-        generate_api_key = self.get_config("api.api_key","")
+        base_url = self.get_config("api.base_url", "")
+        api_key = self.get_config("api.api_key", "")
 
         endpoint = f"{base_url.rstrip('/')}/images/generations"
 
-        #指定图片大小参数
-        default_size = size #初始化
-        enable_default_size = self.get_config("generation.fixed_size_enabled","false")#获取是否启用自定义图片大小，如果启用，将图片大小指定为固定值
-        if enable_default_size:
-            default_size = self.get_config("generation.default_size","")
+        # 解析图片尺寸
+        width, height = self._parse_size(size)
 
-        # 获取配置参数 - 使用字符串键名
-        custom_prompt_add = self.get_config("generation.custom_prompt_add","")#附加正面提示词参数
-        negative_prompt_add = self.get_config("generation.negative_prompt_add", "")#附加负面提示词参数
+        # 获取配置参数
+        custom_prompt_add = self.get_config("generation.custom_prompt_add", "")
+        negative_prompt_add = self.get_config("generation.negative_prompt_add", "")
 
-        prompt_add= prompt + custom_prompt_add#不手动添加逗号，需要在配置文件中注意
-        negative_prompt = negative_prompt_add#暂时没有自动生成的负面参数
+        # 构建完整提示词
+        full_prompt = prompt + custom_prompt_add
+        negative_prompt = negative_prompt_add
 
+        # 构建OpenAI兼容的请求体
         payload_dict = {
             "model": model,
-            "prompt": prompt_add,  # 使用附加的正面提示词
-            "negative_prompt":negative_prompt,
-            #"response_format": "b64_json",# gpt-image-1 无法使用 url 返回为 “b64_json"，豆包默认返回为 "url"
-            "size": default_size,#固定size
-            "guidance_scale": guidance_scale,
-            "watermark": watermark,
-            "seed": seed,  # seed is now always an int from process()
-            "api-key": generate_api_key,
+            "prompt": full_prompt,
+            "response_format": "b64_json",
+            "extra_body": {
+                "width": width,
+                "height": height,
+                "num_inference_steps": num_inference_steps,
+                "seed": seed,
+                "guidance_scale": guidance_scale,
+                "negative_prompt": negative_prompt
+            }
         }
-        # if seed is not None: # No longer needed, seed is always an int
-        #     payload_dict["seed"] = seed
 
         data = json.dumps(payload_dict).encode("utf-8")
         headers = {
             "Content-Type": "application/json",
             "Accept": "application/json",
-            "Authorization": f"{generate_api_key}",
-        }# gpt 或其他模型密钥要删除‘Bearer ’前缀
+            "Authorization": f"Bearer {api_key}",
+        }
 
-        logger.info(f"{self.log_prefix} (HTTP) 发起图片请求: {model}, custom_prompt_add:{custom_prompt_add[:30]}...,Prompt: {prompt_add[:30]}...,NegativePrompt: {negative_prompt[:30]}... To: {endpoint}")
-        logger.debug(
-            f"{self.log_prefix} (HTTP) Request Headers: {{...Authorization: Bearer {generate_api_key[:10]}...}}"
-        )
-        logger.debug(
-            f"{self.log_prefix} (HTTP) Request Body (api-key omitted): {json.dumps({k: v for k, v in payload_dict.items() if k != 'api-key'})}"
-        )
+        logger.info(f"{self.log_prefix} (HTTP) 发起图片请求: {model}, Prompt: {full_prompt[:30]}..., Size: {width}x{height} To: {endpoint}")
+        logger.debug(f"{self.log_prefix} (HTTP) Request Headers: {{...Authorization: Bearer {api_key[:10]}...}}")
+        logger.debug(f"{self.log_prefix} (HTTP) Request Body: {json.dumps(payload_dict, indent=2)}")
 
         req = urllib.request.Request(endpoint, data=data, headers=headers, method="POST")
 
         try:
-            with urllib.request.urlopen(req, timeout=60) as response:
+            with urllib.request.urlopen(req, timeout=120) as response:
                 response_status = response.status
                 response_body_bytes = response.read()
                 response_body_str = response_body_bytes.decode("utf-8")
@@ -333,8 +316,7 @@ class Custom_Pic_Action(BaseAction):
 
                 if 200 <= response_status < 300:
                     response_data = json.loads(response_body_str)
-                    b64_data = None
-                    image_url = None #清理缓存
+                    
                     # 优先检查Base64数据
                     if (
                         isinstance(response_data.get("data"), list)
@@ -342,37 +324,27 @@ class Custom_Pic_Action(BaseAction):
                         and isinstance(response_data["data"][0], dict)
                         and "b64_json" in response_data["data"][0]
                     ):
-
                         b64_data = response_data["data"][0]["b64_json"]
                         logger.info(f"{self.log_prefix} (HTTP) 获取到Base64图片数据，长度: {len(b64_data)}")
-                        return True, b64_data  # 直接返回Base64字符串
+                        return True, b64_data
+                    
+                    # 检查URL格式（兼容性）
                     elif (
-                            isinstance(response_data.get("data"), list)
-                            and response_data["data"]
-                            and isinstance(response_data["data"][0], dict)
+                        isinstance(response_data.get("data"), list)
+                        and response_data["data"]
+                        and isinstance(response_data["data"][0], dict)
+                        and "url" in response_data["data"][0]
                     ):
-                        image_url = response_data["data"][0].get("url")
-                    elif(#魔搭社区返回的 json
-                            isinstance(response_data.get("images"), list)
-                            and response_data["images"]
-                            and isinstance(response_data["images"][0], dict)
-                    ):
-                        image_url = response_data["images"][0].get("url")
-                    elif response_data.get("url"):
-                        image_url = response_data.get("url")
-                    if image_url:
+                        image_url = response_data["data"][0]["url"]
                         logger.info(f"{self.log_prefix} (HTTP) 图片生成成功，URL: {image_url[:70]}...")
                         return True, image_url
+                    
                     else:
-                        logger.error(
-                            f"{self.log_prefix} (HTTP) API成功但无图片URL. 响应预览: {response_body_str[:300]}..."
-                        )
-                        return False, "图片生成API响应成功但未找到图片URL"
+                        logger.error(f"{self.log_prefix} (HTTP) API成功但无图片数据. 响应预览: {response_body_str[:300]}...")
+                        return False, "图片生成API响应成功但未找到图片数据"
                 else:
-                    logger.error(
-                        f"{self.log_prefix} (HTTP) API请求失败. 状态: {response.status}. 正文: {response_body_str[:300]}..."
-                    )
-                    return False, f"图片API请求失败(状态码 {response.status})"
+                    logger.error(f"{self.log_prefix} (HTTP) API请求失败. 状态: {response_status}. 正文: {response_body_str[:300]}...")
+                    return False, f"图片API请求失败(状态码 {response_status})"
         except Exception as e:
             logger.error(f"{self.log_prefix} (HTTP) 图片生成时意外错误: {e!r}", exc_info=True)
             traceback.print_exc()
@@ -382,22 +354,20 @@ class Custom_Pic_Action(BaseAction):
 # ===== 插件注册 =====
 @register_plugin
 class CustomPicPlugin(BasePlugin):
-    """根据描述使用不同的 绘图 API生成图片的动作处理类"""
+    """根据描述使用Flux模型生成图片的动作处理类"""
     # 插件基本信息
-    plugin_name = "custom_pic_plugin"# 内部标识符
-    plugin_version = "2.0.1"
+    plugin_name = "custom_pic_plugin"
+    plugin_version = "2.1.0"
     plugin_author = "Ptrel"
     enable_plugin = True
-    dependencies: List[str] = []  # 插件依赖列表
-    python_dependencies: List[str] = []  # Python包依赖列表
+    dependencies: List[str] = []
+    python_dependencies: List[str] = []
     config_file_name = "config.toml"
-
-
 
     # 步骤1: 定义配置节的描述
     config_section_descriptions = {
         "plugin": "插件启用配置",
-        "api": "API的基础url",
+        "api": "API的基础配置",
         "generation": "图片生成参数配置，控制生成图片的各种参数",
         "cache": "结果缓存配置",
         "components": "组件启用配置",
@@ -406,73 +376,71 @@ class CustomPicPlugin(BasePlugin):
     # 步骤2: 使用ConfigField定义详细的配置Schema
     config_schema = {
         "plugin": {
-            "name": ConfigField(type=str, default="custom_pic_plugin", description="自定义提示词绘图", required=True),
-            "config_version": ConfigField(type=str, default="1.2.2", description="插件版本号"),
+            "name": ConfigField(type=str, default="custom_pic_plugin", description="自定义Flux绘图插件", required=True),
+            "config_version": ConfigField(type=str, default="2.1.0", description="插件版本号"),
             "enabled": ConfigField(type=bool, default=False, description="是否启用插件")
         },
         "api": {
             "base_url": ConfigField(
                 type=str,
-                default="https://api-inference.modelscope.cn/v1",
-                description="API的基础url",
-                example="https://api.example.com/v1",
-                choices=[
-                    "https://api-inference.modelscope.cn/v1\"#魔搭可自选 lora，对应模型网址：https://modelscope.cn/models?page=1&tabKey=task&tasks=hotTask:text-to-image-synthesis&type=tasks", 
-                    "\n#https://ark.cn-beijing.volces.com/api/v3\"#豆包火山方舟 API,对应网址：https://console.volcengine.com/auth/login?redirectURI=%2Fmessage%2Finnermsg",
-                    "\n#https://api.chatanywhere.tech/v1\"#chatany API，第三方API，对应文档网址：https://chatanywhere.apifox.cn/",
-                    "\n#hhttps://apihk.unifyllm.top/v1\"#apihk API,更便宜的第三方，对应文档网址：https://apihk.unifyllm.top/",
-                    ]
+                default="https://rinkoai.com/v1",
+                description="API的基础URL",
+                example="https://rinkoai.com/v1"
             ),
             "api_key": ConfigField(
                 type=str,                 
-                default="Bearer xxxxxxxxxxxxxxxxxxxxxx",
-                description="API 的 api 密钥，需要添加‘Bearer ’前缀，chatany 不需要前缀，根据不同 api 文档进行选择（也有加或不加均支持的）,如 chatanywhere 的 key 不需要 Berarer，即直接输入密钥‘xxxxxxxxxxxxxxxxxxxxxxxx’", 
+                default="YOUR_API_KEY_HERE",
+                description="API密钥", 
                 required=True
             ),
         },
         "generation": {
             "default_model": ConfigField(
                 type=str,
-                default="cancel13/liaocao\"#潦草 lora 图片生成模型（魔搭）",
-                description="模型选择，可自定义，以下为示例",
+                default="black-forest-labs/flux-schnell",
+                description="默认使用的Flux模型",
                 choices=[
-                    "MusePublic/14_ckpt_SD_XL\"#万象熔炉 | Anything XL，社区模型(魔搭)","\n#cancel13/liaocao\"#潦草 lora 图片生成模型，社区模型（魔搭）","\n#doubao-seedream-3-0-t2i-250415\"#豆包图片生成模型约 0.3￥ 一张图（火山）",
-                    "\n#gpt-image-1\"#GPT 生图，约 1.3￥ 一张图（chatany），约 0.2￥ 一张图（apihk）"
-                    ]
+                    "black-forest-labs/flux-schnell",
+                    "black-forest-labs/flux-dev"
+                ]
             ),
             "fixed_size_enabled": ConfigField(
                 type=bool,
                 default=True,
-                description="是否启用固定图片大小，启用后只会发配置文件中定义的大小，否则会由麦麦自己选择。（chatany 的 gpt-image-1 生图模型不支持 512 大小图片，需要固定 1024x1024）"),
+                description="是否启用固定图片大小，启用后只会使用配置文件中定义的大小"
+            ),
             "default_size": ConfigField(
                 type=str,
                 default="1024x1024",
                 description="要生成的图片尺寸",
                 example="1024x1024",
-                choices=["512x512","1024x1024", "1024x1280", "1280x1024", "1024x1536", "1536x1024"],
+                choices=["512x512", "768x768", "1024x1024", "1024x1280", "1280x1024", "1024x1536", "1536x1024"],
             ),
-            "default_watermark": ConfigField(
-                type=bool, 
-                default=True, 
-                description="是否默认添加水印"),
             "default_guidance_scale": ConfigField(
                 type=float, 
-                default=2.5, 
-                description="模型指导强度，影响图片与提示的关联性", example="2.0"
+                default=7.5, 
+                description="模型指导强度，影响图片与提示的关联性", 
+                example="7.5"
             ),
             "default_seed": ConfigField(
                 type=int, 
-                default=42, 
-                description="随机种子，用于复现图片"),
+                default=-1, 
+                description="随机种子，-1表示随机生成"
+            ),
+            "num_inference_steps": ConfigField(
+                type=int,
+                default=30,
+                description="推理步数，影响图片质量和生成时间"
+            ),
             "custom_prompt_add": ConfigField(
                 type=str,
-                default=",Nordic picture book art style, minimalist flat design, soft rounded lines, high saturation color blocks collision, dominant forest green and warm orange palette, low contrast lighting, hand-drawn pencil texture, healing fairy-tale atmosphere, geometric natural forms, ample white space composition, warm and clean aesthetic,liaocao\"#北欧绘本艺术风格，简约扁平设计，柔和圆润线条，高饱和度色块碰撞，森林绿与暖橙主色调，低对比度光影，手绘铅笔质感，治愈系童话氛围，几何化自然形态，留白构图，温暖干净画面",
-                description="正面附加提示词（因为为附加，开头需要添加一个英文逗号‘,’，该参数不参与 LLM 模型转换，属于直接发送的参数，使用英文，使用词语和逗号的形式，不使用描述的原因为：为了确保提示词能够精准生效，防止 lora 关键词被替换。豆包可以直接使用中文句子作为提示词）。"
+                default=", high quality, detailed, masterpiece",
+                description="正面附加提示词（开头需要添加逗号','）"
             ),
             "negative_prompt_add": ConfigField(
                 type=str,
-                default="Pornography,nudity,lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry\"#色情，裸体，低分辨率，糟糕的解剖结构，糟糕的手，文字，错误，缺失的手指，多余的数字，更少的数字，裁剪，最差的质量，低质量，正常质量，jpeg文物，签名，水印，用户名，模糊色情，裸体，低分辨率，糟糕的解剖结构，糟糕的手，文字，错误，缺失的手指，多余的数字，更少的数字，裁剪，最差的质量，低质量，正常质量，jpeg文物，签名，水印，用户名，模糊",
-                description="负面附加提示词，保持默认或使用豆包时可留空，留空时保持两个英文双引号，否则会报错。"
+                default="low quality, blurry, distorted, watermark, signature, text",
+                description="负面提示词，用于避免不想要的元素"
             ),
         },
         "cache": {
@@ -506,5 +474,3 @@ class CustomPicPlugin(BasePlugin):
             components.append((Custom_Pic_Action.get_action_info(), Custom_Pic_Action))
 
         return components
-
-
